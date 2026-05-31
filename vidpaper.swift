@@ -42,9 +42,8 @@ private let stateURL = configDir.appendingPathComponent("state.json")
 private let blackImageURL = configDir.appendingPathComponent("black.png")
 private let wallpaperBackupURL = configDir.appendingPathComponent("wallpaper-backup.plist")
 
-// macOS 14+ stores the user's (possibly dynamic) wallpaper selection here.
-// setDesktopImageURL writes into this file, so we snapshot it before touching
-// the wallpaper and copy back at quit.
+// macOS 14+ stores the wallpaper selection here. setDesktopImageURL writes
+// into it, so we snapshot before overwriting and copy back at quit.
 private let systemWallpaperIndexPlist = FileManager.default
     .homeDirectoryForCurrentUser
     .appendingPathComponent("Library/Application Support/com.apple.wallpaper/Store/Index.plist")
@@ -82,10 +81,9 @@ private func saveState(_ state: PersistedState) {
 
 // MARK: - System wallpaper helpers
 //
-// menubar samples its background from the desktop wallpaper + any layer in
-// the menubar region. We make it black by (a) flipping system wallpaper to
-// a 2x2 black PNG via setDesktopImageURL, and (b) overlaying a black CALayer
-// on the main screen's video window over the menubar strip (Tahoe 26+).
+// Menubar samples the desktop wallpaper, so we keep it black: (a) set the
+// system wallpaper to a 2x2 black PNG, and (b) overlay a black CALayer over
+// the menubar strip on the main screen (Tahoe 26+).
 
 func ensureBlackImage() {
     if FileManager.default.fileExists(atPath: blackImageURL.path) { return }
@@ -101,8 +99,8 @@ func ensureBlackImage() {
     }
 }
 
-// MUST run before any setDesktopImageURL(black), otherwise the backup itself
-// is polluted. Skip if a backup from a previous unclean quit already exists.
+// MUST run before any setDesktopImageURL(black) or the backup is polluted.
+// Skip if a backup from a previous unclean quit exists.
 func backupSystemWallpaperConfig() {
     let fm = FileManager.default
     guard fm.fileExists(atPath: systemWallpaperIndexPlist.path) else {
@@ -117,9 +115,8 @@ func backupSystemWallpaperConfig() {
     }
 }
 
-// Restore Index.plist from backup + bounce WallpaperAgent. We deliberately do
-// NOT delete the backup here — the same backup is reused across multiple Stop
-// calls in one process lifetime. Backup is deleted only at quit (cleanupBackup).
+// Restore Index.plist from backup + bounce WallpaperAgent. Backup is NOT
+// deleted here — it's reused across Stop calls, removed only at quit.
 func restoreSystemWallpaper() {
     let fm = FileManager.default
     if fm.fileExists(atPath: wallpaperBackupURL.path) {
@@ -187,8 +184,7 @@ func createWallpaperWindow(screen: NSScreen) -> NSWindow {
     return window
 }
 
-// AVQueuePlayer + AVPlayerLooper is Apple's seamless-loop pattern. Looper is
-// retained by host view; host is owned by window.contentView.
+// AVQueuePlayer + AVPlayerLooper = seamless loop. Looper retained by host view.
 @MainActor
 func setupVideoContent(window: NSWindow, screen: NSScreen, path: String, volume: Float) -> AVPlayer {
     let url = URL(fileURLWithPath: path)
@@ -210,8 +206,8 @@ func setupVideoContent(window: NSWindow, screen: NSScreen, path: String, volume:
     host.layer?.addSublayer(playerLayer)
     host.autoresizingMask = [.width, .height]
 
-    // Tahoe 26+ menubar samples below-window pixels too — cover the menubar
-    // strip on the main screen so it stays black instead of the video's top row.
+    // Tahoe 26+ menubar samples below-window pixels — cover the strip on the
+    // main screen so it stays black.
     if screen == NSScreen.main {
         let menubarH = NSStatusBar.system.thickness
         let cover = CALayer()
@@ -236,8 +232,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private var statusItem: NSStatusItem!
 
-    // Per-screen state, keyed by NSScreen.localizedName. Identical-model
-    // monitors collide on this key (macOS API limitation); second wins.
+    // Per-screen state keyed by NSScreen.localizedName (identical models collide).
     private var windows: [String: NSWindow] = [:]
     private var players: [String: AVPlayer] = [:]
     private var activeSources: [String: String] = [:]
@@ -625,8 +620,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         rebuildMenu()
     }
 
-    // lastSources is INTENTIONALLY kept so the user can Restore later.
-    // ~1-3s gap while WallpaperAgent restarts (macOS limitation).
+    // lastSources kept so the user can Restore later. ~1-3s gap while the
+    // WallpaperAgent restarts.
     private func stop(screen: NSScreen) {
         let name = screen.localizedName
         teardown(name: name)
@@ -684,10 +679,24 @@ private var volumeLabelKey: UInt8 = 0
 
 // MARK: - main
 
+// Held for the process lifetime so the signal sources are not deallocated.
+private var signalSources: [DispatchSourceSignal] = []
+
 MainActor.assumeIsolated {
     let app = NSApplication.shared
     app.setActivationPolicy(.accessory)
     let delegate = AppDelegate()
     app.delegate = delegate
+
+    // Route SIGTERM/SIGINT (e.g. from `vidpaper-stop`) through AppKit's normal
+    // termination so applicationWillTerminate runs and restores the wallpaper.
+    for sig in [SIGTERM, SIGINT] {
+        signal(sig, SIG_IGN)
+        let source = DispatchSource.makeSignalSource(signal: sig, queue: .main)
+        source.setEventHandler { NSApplication.shared.terminate(nil) }
+        source.resume()
+        signalSources.append(source)
+    }
+
     app.run()
 }
