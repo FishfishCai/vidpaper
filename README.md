@@ -12,10 +12,19 @@ macOS with Xcode Command Line Tools (`swift --version` to check;
 
 ## Install
 
+Run these from the directory where you cloned the repo:
+
 ```sh
 git clone https://github.com/FishfishCai/vidpaper.git
 chmod +x vidpaper/vidpaper.swift
-ln -sf "$(pwd)/vidpaper/vidpaper.swift" ~/.local/bin/vidpaper   # or any dir in $PATH
+
+# Symlink it into any directory on your PATH. ~/.local/bin is just one choice
+# (created here if missing); /usr/local/bin or your own bin dir works too.
+mkdir -p ~/.local/bin
+ln -sf "$(pwd)/vidpaper/vidpaper.swift" ~/.local/bin/vidpaper
+
+# If ~/.local/bin isn't on your PATH yet (zsh is the default macOS shell):
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc
 ```
 
 ## Usage
