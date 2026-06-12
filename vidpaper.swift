@@ -34,7 +34,7 @@ struct L {
 
 private let configDir: URL = {
     let dir = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent(".vidpaper")
+        .appendingPathComponent(".config/vidpaper")
     try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     return dir
 }()

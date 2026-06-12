@@ -54,7 +54,7 @@ last-played path, volume, and pause/resume state.
 ## State files
 
 ```
-~/.vidpaper/
+~/.config/vidpaper/
 ├── state.json                  per-screen lastPath / volume / language
 ├── black.png                   2×2 black PNG used as system wallpaper placeholder
 └── wallpaper-backup.plist      snapshot of macOS Index.plist taken at first launch
