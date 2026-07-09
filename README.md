@@ -29,7 +29,7 @@ point `DIR` at your clone:
 ```sh
 #!/bin/sh
 # vidpaper toggle: running -> stop (graceful, restores wallpaper), stopped -> start.
-DIR="$HOME/Documents/app/vidpaper"      # adjust to your clone directory
+DIR=""      # set to your clone directory
 PIDFILE="$DIR/.vidpaper.pid"
 
 running() {
@@ -71,12 +71,6 @@ if ! kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
     exit 1
 fi
 echo "vidpaper started (PID $(cat "$PIDFILE"))"
-```
-
-If that bin dir isn't on your `PATH` yet (zsh is the default macOS shell):
-
-```sh
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc
 ```
 
 ## Usage
