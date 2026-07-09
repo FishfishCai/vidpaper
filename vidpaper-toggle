@@ -1,0 +1,46 @@
+#!/bin/sh
+# vidpaper toggle: running -> stop (graceful, restores wallpaper), stopped -> start.
+# Symlink onto your $PATH: ln -sf "$PWD/vidpaper-toggle" ~/.local/bin/vidpaper
+SELF="$0"; [ -L "$SELF" ] && SELF="$(readlink "$SELF")"
+DIR="$(cd "$(dirname "$SELF")" && pwd)"
+PIDFILE="$DIR/.vidpaper.pid"
+
+running() {
+    [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null && return 0
+    pgrep -f "$DIR/vidpaper.swift" >/dev/null 2>&1
+}
+
+if running; then
+    # Stop gracefully (SIGTERM) so applicationWillTerminate restores the wallpaper.
+    if [ -f "$PIDFILE" ]; then
+        PID=$(cat "$PIDFILE")
+        kill "$PID" 2>/dev/null
+        # wait up to ~5s for wallpaper restore + WallpaperAgent bounce, then force-kill if stuck
+        i=0
+        while [ $i -lt 10 ] && kill -0 "$PID" 2>/dev/null; do sleep 0.5; i=$((i+1)); done
+        kill -0 "$PID" 2>/dev/null && kill -9 "$PID" 2>/dev/null
+        rm -f "$PIDFILE"
+    else
+        pkill -f "$DIR/vidpaper.swift" 2>/dev/null
+    fi
+    echo "vidpaper stopped"
+    exit 0
+fi
+
+# stopped -> start: clear any stale state first
+if [ -f "$PIDFILE" ]; then
+    kill -9 "$(cat "$PIDFILE")" 2>/dev/null
+    rm -f "$PIDFILE"
+fi
+pkill -9 -f "$DIR/vidpaper.swift" 2>/dev/null
+sleep 1
+
+"$DIR/vidpaper.swift" > /tmp/vidpaper.log 2>&1 &
+echo $! > "$PIDFILE"
+
+sleep 1
+if ! kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+    echo "vidpaper failed to start (see /tmp/vidpaper.log)"
+    exit 1
+fi
+echo "vidpaper started (PID $(cat "$PIDFILE"))"

@@ -19,59 +19,17 @@ chmod +x vidpaper/vidpaper.swift
 
 ## Start/stop toggle command
 
-`vidpaper` is driven by a small toggle — run `vidpaper` to start it (▶ appears
-in the menu bar), run `vidpaper` again to stop it. Stopping sends `SIGTERM` so
-the app restores your original wallpaper gracefully before exiting. Save the
-script below into **any directory on your `$PATH`** (e.g. `~/.local/bin`,
-`/usr/local/bin`, or your own bin dir), name it `vidpaper`, `chmod +x` it, and
-point `DIR` at your clone:
+The repo ships **`vidpaper-toggle`**, a start/stop wrapper — run it once to
+start (▶ appears in the menu bar), run it again to stop (it sends `SIGTERM` so
+the app restores your original wallpaper gracefully). It locates
+`vidpaper.swift` next to itself, so just symlink it onto a directory in your
+`$PATH`:
 
 ```sh
-#!/bin/sh
-# vidpaper toggle: running -> stop (graceful, restores wallpaper), stopped -> start.
-DIR=""      # set to your clone directory
-PIDFILE="$DIR/.vidpaper.pid"
-
-running() {
-    [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null && return 0
-    pgrep -f "$DIR/vidpaper.swift" >/dev/null 2>&1
-}
-
-if running; then
-    # Stop gracefully (SIGTERM) so applicationWillTerminate restores the wallpaper.
-    if [ -f "$PIDFILE" ]; then
-        PID=$(cat "$PIDFILE")
-        kill "$PID" 2>/dev/null
-        # wait up to ~5s for wallpaper restore + WallpaperAgent bounce, then force-kill if stuck
-        i=0
-        while [ $i -lt 10 ] && kill -0 "$PID" 2>/dev/null; do sleep 0.5; i=$((i+1)); done
-        kill -0 "$PID" 2>/dev/null && kill -9 "$PID" 2>/dev/null
-        rm -f "$PIDFILE"
-    else
-        pkill -f "$DIR/vidpaper.swift" 2>/dev/null
-    fi
-    echo "vidpaper stopped"
-    exit 0
-fi
-
-# stopped -> start: clear any stale state first
-if [ -f "$PIDFILE" ]; then
-    kill -9 "$(cat "$PIDFILE")" 2>/dev/null
-    rm -f "$PIDFILE"
-fi
-pkill -9 -f "$DIR/vidpaper.swift" 2>/dev/null
-sleep 1
-
-"$DIR/vidpaper.swift" > /tmp/vidpaper.log 2>&1 &
-echo $! > "$PIDFILE"
-
-sleep 1
-if ! kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
-    echo "vidpaper failed to start (see /tmp/vidpaper.log)"
-    exit 1
-fi
-echo "vidpaper started (PID $(cat "$PIDFILE"))"
+ln -sf "$(pwd)/vidpaper/vidpaper-toggle" ~/.local/bin/vidpaper
 ```
+
+Now `vidpaper` starts it and `vidpaper` again stops it.
 
 ## Usage
 
